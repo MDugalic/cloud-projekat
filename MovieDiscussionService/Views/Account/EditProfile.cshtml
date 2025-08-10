@@ -1,0 +1,39 @@
+﻿@model Common.DTOs.RegisterDTO
+@{
+    ViewBag.Title = "Edit Profile";
+}
+
+<h2>Edit Profile</h2>
+
+@using (Html.BeginForm())
+{
+    @Html.LabelFor(m => m.FullName)
+    @Html.TextBoxFor(m => m.FullName)
+    <br />
+
+    @Html.LabelFor(m => m.Gender)
+    @Html.TextBoxFor(m => m.Gender)
+    <br />
+
+    @Html.LabelFor(m => m.Country)
+    @Html.TextBoxFor(m => m.Country)
+    <br />
+
+    @Html.LabelFor(m => m.City)
+    @Html.TextBoxFor(m => m.City)
+    <br />
+
+    @Html.LabelFor(m => m.Address)
+    @Html.TextBoxFor(m => m.Address)
+    <br />
+
+    @Html.Label("New Password (optional)")
+    @Html.PasswordFor(m => m.Password)
+    <br />
+
+    @Html.LabelFor(m => m.PhotoUrl)
+    @Html.TextBoxFor(m => m.PhotoUrl)
+    <br />
+
+    <input type="submit" value="Save Changes" />
+}
