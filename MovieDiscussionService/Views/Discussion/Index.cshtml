@@ -1,0 +1,33 @@
+﻿@model IEnumerable<Common.DiscussionEntity>
+@{
+    ViewBag.Title = "Discussions";
+}
+<h2>Discussions</h2>
+
+<p>
+    @Html.ActionLink("Create new discussion", "Create", "Discussion")
+</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Movie</th>
+            <th>Year</th>
+            <th>Genre</th>
+            <th>IMDB</th>
+            <th>+/-</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var d in Model)
+        {
+            <tr>
+                <td>@d.MovieTitle</td>
+                <td>@d.Year</td>
+                <td>@d.Genre</td>
+                <td>@d.ImdbRating</td>
+                <td>@d.Positive / @d.Negative</td>
+            </tr>
+        }
+    </tbody>
+</table>

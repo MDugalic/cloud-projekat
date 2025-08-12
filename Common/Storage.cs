@@ -5,6 +5,7 @@ using Microsoft.WindowsAzure.Storage.Queue;
 using Microsoft.WindowsAzure.Storage.Table;
 using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -13,8 +14,28 @@ namespace Common
 {
     public static class Storage
     {
+        private static string ResolveConnString()
+        {
+            // 1) CloudConfigurationManager (radi i u web.config i u .cscfg)
+            var cs = CloudConfigurationManager.GetSetting("DataConnectionString");
+
+            // 2) Web.config appSettings fallback
+            if (string.IsNullOrWhiteSpace(cs))
+                cs = ConfigurationManager.AppSettings["DataConnectionString"];
+
+            // 3) Env var (ako je koristiš)
+            if (string.IsNullOrWhiteSpace(cs))
+                cs = Environment.GetEnvironmentVariable("AZURE_STORAGE_CONNECTION_STRING");
+
+            // 4) Safe default za lokalni rad (Azurite / Storage Emulator)
+            if (string.IsNullOrWhiteSpace(cs))
+                cs = "UseDevelopmentStorage=true";
+
+            return cs;
+        }
+
         public static CloudStorageAccount Account =>
-            CloudStorageAccount.Parse(CloudConfigurationManager.GetSetting("DataConnectionString"));
+            CloudStorageAccount.Parse(ResolveConnString());
 
         public static CloudTable GetTable(string name)
         {
@@ -41,3 +62,5 @@ namespace Common
         }
     }
 }
+
+
