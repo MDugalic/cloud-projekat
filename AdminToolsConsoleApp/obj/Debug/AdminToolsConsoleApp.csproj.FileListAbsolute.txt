@@ -18,3 +18,4 @@ C:\Dev\MovieForumCloudSolution\AdminToolsConsoleApp\obj\Debug\AdminToolsConsoleA
 C:\Dev\MovieForumCloudSolution\AdminToolsConsoleApp\obj\Debug\AdminToo.5491D41C.Up2Date
 C:\Dev\MovieForumCloudSolution\AdminToolsConsoleApp\obj\Debug\AdminToolsConsoleApp.exe
 C:\Dev\MovieForumCloudSolution\AdminToolsConsoleApp\obj\Debug\AdminToolsConsoleApp.pdb
+C:\Dev\MovieForumCloudSolution\AdminToolsConsoleApp\obj\Debug\AdminToolsConsoleApp.exe.config
