@@ -1,0 +1,48 @@
+﻿
+@model Common.DTOs.CreateDiscussionDTO
+
+@{
+    ViewBag.Title = "Edit Discussion";
+}
+
+<h2>Edit Discussion</h2>
+
+@using (Html.BeginForm("Edit", "Discussion", FormMethod.Post, new { @class = "form" }))
+{
+    <div class="form-group">
+        @Html.LabelFor(m => m.MovieTitle)
+        @Html.TextBoxFor(m => m.MovieTitle, new { @class = "form-control", placeholder = "Enter movie title" })
+    </div>
+
+    <div class="form-group">
+        @Html.LabelFor(m => m.Year)
+        @Html.TextBoxFor(m => m.Year, new { @class = "form-control", placeholder = "Enter movie year" })
+    </div>
+
+    <div class="form-group">
+        @Html.LabelFor(m => m.Genre)
+        @Html.TextBoxFor(m => m.Genre, new { @class = "form-control", placeholder = "Enter movie genre" })
+    </div>
+
+    <div class="form-group">
+        @Html.LabelFor(m => m.ImdbRating)
+        @Html.TextBoxFor(m => m.ImdbRating, new { @class = "form-control", placeholder = "Enter IMDB rating" })
+    </div>
+
+    <div class="form-group">
+        @Html.LabelFor(m => m.Synopsis)
+        @Html.TextAreaFor(m => m.Synopsis, new { @class = "form-control", placeholder = "Enter movie synopsis" })
+    </div>
+
+    <div class="form-group">
+        @Html.LabelFor(m => m.DurationMin)
+        @Html.TextBoxFor(m => m.DurationMin, new { @class = "form-control", placeholder = "Enter movie duration in minutes" })
+    </div>
+
+    <div class="form-group">
+        @Html.LabelFor(m => m.PosterUrl)
+        @Html.TextBoxFor(m => m.PosterUrl, new { @class = "form-control", placeholder = "Enter movie poster URL" })
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+}

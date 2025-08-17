@@ -11,10 +11,13 @@ namespace Common
     {
         public FollowEntity(string discussionId, string userEmail)
         {
-            PartitionKey = discussionId;
-            RowKey = userEmail?.ToLowerInvariant();
+            PartitionKey = discussionId; // Diskusija
+            RowKey = userEmail?.ToLowerInvariant(); // Korisnik
         }
 
         public FollowEntity() { }
+
+        public string UserEmail => RowKey;
+        public string DiscussionId => PartitionKey;
     }
 }

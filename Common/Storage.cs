@@ -56,9 +56,18 @@ namespace Common
         public static CloudBlobContainer GetContainer(string name)
         {
             var client = Account.CreateCloudBlobClient();
-            var c = client.GetContainerReference(name);
-            c.CreateIfNotExists();
-            return c;
+            var container = client.GetContainerReference(name);
+
+            if (container.CreateIfNotExists())
+            {
+                var permissions = new BlobContainerPermissions
+                {
+                    PublicAccess = BlobContainerPublicAccessType.Blob
+                };
+                container.SetPermissions(permissions);
+            }
+
+            return container;
         }
     }
 }
