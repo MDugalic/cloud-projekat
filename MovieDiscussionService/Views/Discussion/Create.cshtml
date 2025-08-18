@@ -6,8 +6,19 @@
 
 <h2>Create New Discussion</h2>
 
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="alert alert-danger">
+        @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+        {
+            <p>@error.ErrorMessage</p>
+        }
+    </div>
+}
+
 @using (Html.BeginForm("Create", "Discussion", FormMethod.Post, new { @class = "form", enctype = "multipart/form-data" }))
 {
+
     <div class="form-group">
         @Html.LabelFor(m => m.MovieTitle)
         @Html.TextBoxFor(m => m.MovieTitle, new { @class = "form-control", placeholder = "Enter movie title" })

@@ -6,12 +6,47 @@
 
 <h2>Discussions</h2>
 
+<!-- Pretraga i filtriranje -->
+<!-- Pretraga i filtriranje -->
+@using (Html.BeginForm("Index", "Discussion", FormMethod.Get, new { id = "searchForm" }))
+{
+    <div>
+        <label for="TitleContains">Movie Title:</label>
+        <input type="text" name="TitleContains" value="@Request["TitleContains"]" id="TitleContains" />
+
+        <label for="GenreEquals">Genre:</label>
+        <input type="text" name="GenreEquals" value="@Request["GenreEquals"]" id="GenreEquals" />
+
+        <button type="submit" onclick="clearInputs()">Search</button>
+
+
+        <label for="SortBy">Sort by:</label>
+        <select name="SortBy" id="sortBy">
+            <option value="None" @(Request["SortBy"] == "None" ? "selected" : "")>None</option>
+            <option value="ScoreDesc" @(Request["SortBy"] == "ScoreDesc" ? "selected" : "")>Best Score</option>
+            <option value="ScoreAsc" @(Request["SortBy"] == "ScoreAsc" ? "selected" : "")>Worst Score</option>
+        </select>
+    </div>
+}
+
+@section Scripts {
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script type="text/javascript">
+        $(document).ready(function () {
+            // Kada korisnik promeni vrednost u dropdownu
+            $('#sortBy').on('change', function () {
+                $('#searchForm').submit();
+            });
+        });
+    </script>
+}
+
 <p>
     @Html.ActionLink("Create new discussion", "Create", "Discussion")
 </p>
 
 <div class="story-container">
-    @foreach (var d in Model)
+    @foreach (var d in ViewBag.Discussions)
     {
         <div class="story-card">
             <img src="@d.PosterUrl" alt="Poster for @d.MovieTitle" class="poster-img" />
@@ -22,7 +57,7 @@
                 <p><strong>Duration:</strong> @d.DurationMin min</p>
                 <p><strong>Synopsis:</strong> @d.Synopsis</p>
                 <p><strong>Reactions:</strong> 👍 @d.Positive / 👎 @d.Negative</p>
-                <p><strong>Created:</strong> @d.CreatedUtc.ToString("yyyy-MM-dd HH:mm")</p>
+                <p><strong>Created:</strong> @d.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</p>
                 <p><strong>By:</strong> @d.CreatorEmail</p>
 
                 @if (d.CreatorEmail?.ToLowerInvariant() == currentUserEmail)
@@ -42,16 +77,18 @@
                 <!-- Ako trenutni korisnik nije kreator diskusije, prikazujemo dugmadi za glasanje -->
                 @if (!ViewBag.IsCreatorMap[d.RowKey])
                 {
+
                     <div class="reaction-buttons">
-                        <form method="post" action="@Url.Action("RateFilm", "Discussion", new { id = d.RowKey, isLike = true })">
+                        <form method="post" action="@Url.Action("RateFilm", "Discussion", new { id = d.RowKey, isLike = true, Page = ViewBag.CurrentPage, PageSize = ViewBag.PageSize, TitleContains = Request["TitleContains"], GenreEquals = Request["GenreEquals"], SortBy = Request["SortBy"] })">
                             <button type="submit" class="btn btn-sm btn-success">👍 @d.Positive</button>
                         </form>
 
-                        <form method="post" action="@Url.Action("RateFilm", "Discussion", new { id = d.RowKey, isLike = false })">
+                        <form method="post" action="@Url.Action("RateFilm", "Discussion", new { id = d.RowKey, isLike = false, Page = ViewBag.CurrentPage, PageSize = ViewBag.PageSize, TitleContains = Request["TitleContains"], GenreEquals = Request["GenreEquals"], SortBy = Request["SortBy"] })">
                             <button type="submit" class="btn btn-sm btn-danger">👎 @d.Negative</button>
                         </form>
+                        
                     </div>
-                   
+
                 }
                 else
                 {
@@ -65,13 +102,13 @@
                     <!-- Prikaz statusa praćenja -->
                     @if (ViewBag.IsFollowingMap[d.RowKey])
                     {
-                        <form method="post" action="@Url.Action("Unfollow", "Discussion", new { id = d.RowKey })">
+                        <form method="post" action="@Url.Action("Unfollow", "Discussion", new { id = d.RowKey, Page = ViewBag.CurrentPage, PageSize = ViewBag.PageSize, TitleContains = Request["TitleContains"], GenreEquals = Request["GenreEquals"], SortBy = Request["SortBy"] })">
                             <button class="btn btn-sm btn-warning">Unfollow</button>
                         </form>
                     }
                     else
                     {
-                        <form method="post" action="@Url.Action("Follow", "Discussion", new { id = d.RowKey })">
+                        <form method="post" action="@Url.Action("Follow", "Discussion", new { id = d.RowKey, Page = ViewBag.CurrentPage, PageSize = ViewBag.PageSize, TitleContains = Request["TitleContains"], GenreEquals = Request["GenreEquals"], SortBy = Request["SortBy"] })">
                             <button class="btn btn-sm btn-success">Follow</button>
                         </form>
                     }
@@ -81,6 +118,23 @@
             </div>
         </div>
     }
+</div>
+
+<!-- Navigacija za stranice -->
+<div>
+    @if (ViewBag.CurrentPage > 1)
+    {
+        <a href="?Page=1&PageSize=@ViewBag.PageSize&TitleContains=@Request["TitleContains"]&GenreEquals=@Request["GenreEquals"]&SortBy=@Request["SortBy"]">First</a>
+        <a href="?Page=@(ViewBag.CurrentPage - 1)&PageSize=@ViewBag.PageSize&TitleContains=@Request["TitleContains"]&GenreEquals=@Request["GenreEquals"]&SortBy=@Request["SortBy"]">Previous</a>
+    }
+
+    @if (ViewBag.CurrentPage < ViewBag.TotalPages)
+    {
+        <a href="?Page=@(ViewBag.CurrentPage + 1)&PageSize=@ViewBag.PageSize&TitleContains=@Request["TitleContains"]&GenreEquals=@Request["GenreEquals"]&SortBy=@Request["SortBy"]">Next</a>
+        <a href="?Page=@ViewBag.TotalPages&PageSize=@ViewBag.PageSize&TitleContains=@Request["TitleContains"]&GenreEquals=@Request["GenreEquals"]&SortBy=@Request["SortBy"]">Last</a>
+    }
+
+    <p>Page @ViewBag.CurrentPage of @ViewBag.TotalPages</p>
 </div>
 
 <script>

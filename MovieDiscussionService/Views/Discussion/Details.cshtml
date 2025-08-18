@@ -11,7 +11,7 @@
 <p><strong>Duration:</strong> @discussion.DurationMin min</p>
 <p><strong>Synopsis:</strong> @discussion.Synopsis</p>
 <p><strong>Reactions:</strong> 👍 @discussion.Positive / 👎 @discussion.Negative</p>
-<p><strong>Created:</strong> @discussion.CreatedUtc.ToString("yyyy-MM-dd HH:mm")</p>
+<p><strong>Created:</strong> @discussion.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</p>
 <p><strong>By:</strong> @discussion.CreatorEmail</p>
 
 <hr />
@@ -37,7 +37,7 @@
         {
             <div class="comment-item">
                 <strong>@comment.AuthorEmail:</strong> @comment.Text
-                <div style="font-size: small; color: gray;">@comment.CreatedUtc.ToString("g")</div>
+                <div style="font-size: small; color: gray;">@comment.CreatedUtc.ToLocalTime().ToString("g")</div>
             </div>
         }
     </div>

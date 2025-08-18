@@ -1,48 +1,56 @@
-﻿
-@model Common.DTOs.CreateDiscussionDTO
-
+﻿@model Common.DTOs.CreateDiscussionDTO
 @{
     ViewBag.Title = "Edit Discussion";
 }
 
 <h2>Edit Discussion</h2>
 
-@using (Html.BeginForm("Edit", "Discussion", FormMethod.Post, new { @class = "form" }))
+@using (Html.BeginForm("Edit", "Discussion", FormMethod.Post, new { enctype = "multipart/form-data", @class = "form" }))
 {
     <div class="form-group">
         @Html.LabelFor(m => m.MovieTitle)
-        @Html.TextBoxFor(m => m.MovieTitle, new { @class = "form-control", placeholder = "Enter movie title" })
+        @Html.TextBoxFor(m => m.MovieTitle, new { @class = "form-control" })
     </div>
 
     <div class="form-group">
         @Html.LabelFor(m => m.Year)
-        @Html.TextBoxFor(m => m.Year, new { @class = "form-control", placeholder = "Enter movie year" })
+        @Html.TextBoxFor(m => m.Year, new { @class = "form-control" })
     </div>
 
     <div class="form-group">
         @Html.LabelFor(m => m.Genre)
-        @Html.TextBoxFor(m => m.Genre, new { @class = "form-control", placeholder = "Enter movie genre" })
+        @Html.TextBoxFor(m => m.Genre, new { @class = "form-control" })
     </div>
 
     <div class="form-group">
         @Html.LabelFor(m => m.ImdbRating)
-        @Html.TextBoxFor(m => m.ImdbRating, new { @class = "form-control", placeholder = "Enter IMDB rating" })
+        @Html.TextBoxFor(m => m.ImdbRating, new { @class = "form-control" })
     </div>
 
     <div class="form-group">
         @Html.LabelFor(m => m.Synopsis)
-        @Html.TextAreaFor(m => m.Synopsis, new { @class = "form-control", placeholder = "Enter movie synopsis" })
+        @Html.TextAreaFor(m => m.Synopsis, new { @class = "form-control" })
     </div>
 
     <div class="form-group">
         @Html.LabelFor(m => m.DurationMin)
-        @Html.TextBoxFor(m => m.DurationMin, new { @class = "form-control", placeholder = "Enter movie duration in minutes" })
+        @Html.TextBoxFor(m => m.DurationMin, new { @class = "form-control" })
     </div>
 
+    <!-- Slika -->
     <div class="form-group">
-        @Html.LabelFor(m => m.PosterUrl)
-        @Html.TextBoxFor(m => m.PosterUrl, new { @class = "form-control", placeholder = "Enter movie poster URL" })
+        @Html.Label("Poster Image")
+        <input type="file" name="PosterFile" class="form-control" accept="image/*" />
+        @if (!string.IsNullOrEmpty(Model.PosterUrl))
+        {
+            <div style="margin-top:10px;">
+                <p>Current Image:</p>
+                <img src="@Model.PosterUrl" style="max-height: 200px;" />
+            </div>
+        }
     </div>
+
+    <br />
 
     <button type="submit" class="btn btn-primary">Save Changes</button>
 }
