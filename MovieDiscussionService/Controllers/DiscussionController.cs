@@ -12,12 +12,13 @@ using System.Linq;
 using System.Web;
 using System.Web.Mvc;
 using System.Xml.Linq;
+using static Common.DTOs.SearchRequestDTO;
 
 namespace MovieDiscussionService.Controllers
 {
     public class DiscussionController : Controller
     {
-        // Definišite tabelu sa diskusijama
+        // Definisanje tabela
         private CloudTable Discussions => Storage.GetTable("Discussions");
         private CloudTable Comments => Storage.GetTable("Comments");
 
@@ -27,11 +28,33 @@ namespace MovieDiscussionService.Controllers
         private CloudTable Votes => Storage.GetTable("Votes");
 
         // GET: /Discussion
-        public ActionResult Index()
+        public ActionResult Index(SearchRequestDTO.SearchRequest searchRequest)
         {
             var discussions = Discussions.CreateQuery<DiscussionEntity>()
                                  .Where(d => d.PartitionKey == "Disc")
                                  .ToList();
+
+            if (!string.IsNullOrEmpty(searchRequest.TitleContains))
+            {
+                discussions = discussions.Where(d => d.MovieTitle.IndexOf(searchRequest.TitleContains, StringComparison.InvariantCultureIgnoreCase) >= 0).ToList();
+            }
+
+            if (!string.IsNullOrEmpty(searchRequest.GenreEquals))
+            {
+                discussions = discussions.Where(d => d.Genre.IndexOf(searchRequest.GenreEquals, StringComparison.InvariantCultureIgnoreCase) >= 0).ToList();
+            }
+
+            switch (searchRequest.SortBy)
+            {
+                case SearchRequestDTO.SortBy.ScoreDesc:
+                    discussions = discussions.OrderByDescending(d => d.Positive - d.Negative).ToList();
+                    break;
+                case SearchRequestDTO.SortBy.ScoreAsc:
+                    discussions = discussions.OrderBy(d => d.Positive - d.Negative).ToList();
+                    break;
+                default:
+                    break;
+            }
 
             // Kreiramo mapu za broj komentara po diskusiji
             var commentCount = new Dictionary<string, int>();
@@ -41,8 +64,15 @@ namespace MovieDiscussionService.Controllers
             var isFollowingMap = new Dictionary<string, bool>();
             var isCreatorMap = new Dictionary<string, bool>();
 
+            var paginatedDiscussions = discussions.Skip((searchRequest.Page - 1) * searchRequest.PageSize)  // Preskoči prethodne stranice
+                                                  .Take(searchRequest.PageSize)  // Uzimaj samo broj diskusija za trenutnu stranicu
+                                                  .ToList();
 
-            foreach (var d in discussions)
+            int totalDiscussions = discussions.Count();
+            int totalPages = (int)Math.Ceiling((double)totalDiscussions / searchRequest.PageSize);
+
+
+            foreach (var d in paginatedDiscussions)
             {
                 var comments = Comments.CreateQuery<CommentEntity>()
                                        .Where(c => c.PartitionKey == d.RowKey)
@@ -69,12 +99,17 @@ namespace MovieDiscussionService.Controllers
                 isCreatorMap[d.RowKey] = d.CreatorEmail?.ToLowerInvariant() == currentUserEmail;
             }
 
+            ViewBag.Discussions = paginatedDiscussions;
+            ViewBag.TotalDiscussions = totalDiscussions;
+            ViewBag.TotalPages = totalPages;
+            ViewBag.CurrentPage = searchRequest.Page;
+
             ViewBag.CommentCount = commentCount;
             ViewBag.FollowerCountMap = followerCountMap;
             ViewBag.IsFollowingMap = isFollowingMap;
             ViewBag.IsCreatorMap = isCreatorMap;
 
-            return View(discussions);
+            return View(paginatedDiscussions);
         }
 
         
@@ -170,7 +205,6 @@ namespace MovieDiscussionService.Controllers
             return View();
         }
 
-        // POST: /Discussion/Edit/{id}
         [HttpPost]
         public ActionResult Edit(string id, CreateDiscussionDTO dto, HttpPostedFileBase PosterFile)
         {
@@ -181,20 +215,15 @@ namespace MovieDiscussionService.Controllers
             if (string.IsNullOrEmpty(email))
                 return RedirectToAction("Login", "Account");
 
-            // Preuzmi diskusiju iz baze
             var discussion = Discussions.Execute(TableOperation.Retrieve<DiscussionEntity>("Disc", id)).Result as DiscussionEntity;
             if (discussion == null || discussion.CreatorEmail != email)
-            {
                 return HttpNotFound();
-            }
 
-            string posterUrl = dto.PosterUrl;
+            string posterUrl = discussion.PosterUrl;
 
-            // Ako je korisnik poslao novi poster (sliku)
             if (PosterFile != null && PosterFile.ContentLength > 0)
             {
-                // Proveri veličinu fajla
-                if (PosterFile.ContentLength > 5 * 1024 * 1024) // 5MB limit
+                if (PosterFile.ContentLength > 5 * 1024 * 1024)
                 {
                     ModelState.AddModelError("", "The file size exceeds the allowed limit (5MB).");
                     return View(dto);
@@ -202,36 +231,31 @@ namespace MovieDiscussionService.Controllers
 
                 try
                 {
-                    var fileName = Guid.NewGuid().ToString() + Path.GetExtension(PosterFile.FileName);
-
-                    // Koristi postojeći Storage helper za dobavljanje kontejnera
-                    var containerName = ConfigurationManager.AppSettings["BlobContainerName"];
-                    var container = Storage.GetContainer(containerName);
-
-                    // Postavi public access ako kontejner nije postojao
-                    var permissions = new BlobContainerPermissions
+                    // 1. Obriši staru sliku
+                    if (!string.IsNullOrEmpty(discussion.PosterUrl))
                     {
-                        PublicAccess = BlobContainerPublicAccessType.Blob
-                    };
-                    container.SetPermissions(permissions);
+                        var oldUri = new Uri(discussion.PosterUrl);
+                        var oldBlobName = Path.GetFileName(oldUri.LocalPath);
+                        var container = Storage.GetContainer(ConfigurationManager.AppSettings["BlobContainerName"]);
+                        var oldBlob = container.GetBlockBlobReference(oldBlobName);
+                        oldBlob.DeleteIfExists();
+                    }
 
-                    // Kreiraj blob reference
-                    var blob = container.GetBlockBlobReference(fileName);
-
-                    // Uploaduj sliku
-                    blob.UploadFromStream(PosterFile.InputStream);
-
-                    // Snimi URL slike
-                    posterUrl = blob.Uri.AbsoluteUri;
+                    // 2. Upload nove slike
+                    var fileName = Guid.NewGuid().ToString() + Path.GetExtension(PosterFile.FileName);
+                    var newContainer = Storage.GetContainer(ConfigurationManager.AppSettings["BlobContainerName"]);
+                    var newBlob = newContainer.GetBlockBlobReference(fileName);
+                    newBlob.UploadFromStream(PosterFile.InputStream);
+                    posterUrl = newBlob.Uri.AbsoluteUri;
                 }
                 catch (Exception ex)
                 {
-                    ModelState.AddModelError("", "An error occurred while uploading the image: " + ex.Message);
+                    ModelState.AddModelError("", "Error uploading image: " + ex.Message);
                     return View(dto);
                 }
             }
 
-            // Ažuriraj diskusiju sa novim podacima
+            // Ažuriranje vrednosti
             discussion.MovieTitle = dto.MovieTitle;
             discussion.Year = dto.Year;
             discussion.Genre = dto.Genre;
@@ -240,22 +264,19 @@ namespace MovieDiscussionService.Controllers
             discussion.DurationMin = dto.DurationMin;
             discussion.PosterUrl = posterUrl;
 
-            // Ažuriraj diskusiju u tabeli
             Discussions.Execute(TableOperation.Replace(discussion));
 
             return RedirectToAction("Index");
         }
 
-
-        // GET: /Discussion/Edit/{id}
         [HttpGet]
         public ActionResult Edit(string id)
         {
+            var email = Session["email"]?.ToString()?.ToLowerInvariant();
             var discussion = Discussions.Execute(TableOperation.Retrieve<DiscussionEntity>("Disc", id)).Result as DiscussionEntity;
-            if (discussion == null || discussion.CreatorEmail != Session["email"]?.ToString()?.ToLowerInvariant())
-            {
+
+            if (discussion == null || discussion.CreatorEmail != email)
                 return HttpNotFound();
-            }
 
             var dto = new CreateDiscussionDTO
             {
@@ -270,6 +291,8 @@ namespace MovieDiscussionService.Controllers
 
             return View(dto);
         }
+
+
 
         // GET: /Discussion/Delete/{id}
         [HttpGet]
@@ -324,7 +347,38 @@ namespace MovieDiscussionService.Controllers
                 }
             }
 
-            // 3. Delete discussion itself
+            // 3. Delete followers
+            var followsTable = Storage.GetTable("FollowTable");
+
+            var followsQuery = new TableQuery<FollowEntity>()
+                .Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, id));
+
+            TableContinuationToken token = null;
+            do
+            {
+                var segment = followsTable.ExecuteQuerySegmented(followsQuery, token);
+                foreach (var follower in segment.Results)
+                {
+                    followsTable.Execute(TableOperation.Delete(follower));
+                }
+
+                token = segment.ContinuationToken;
+            }
+            while (token != null);
+
+            // 4. Delete votes
+            var votesTable = Storage.GetTable("Votes");
+            var votesQuery = new TableQuery<VoteEntity>()
+                .Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, id));
+            var votes = votesTable.ExecuteQuery(votesQuery).ToList();
+
+            foreach (var vote in votes)
+            {
+                votesTable.Execute(TableOperation.Delete(vote));
+            }
+
+
+            // 5. Delete discussion itself
             Discussions.Execute(TableOperation.Delete(discussion));
 
             return RedirectToAction("Index");
@@ -384,7 +438,7 @@ namespace MovieDiscussionService.Controllers
         }
 
         [HttpPost]
-        public ActionResult Follow(string id)
+        public ActionResult Follow(string id, int? Page, int? PageSize, string TitleContains, string GenreEquals, string SortBy)
         {
             if (string.IsNullOrEmpty(CurrentUserEmail))
                 return RedirectToAction("Login", "Account");
@@ -401,11 +455,12 @@ namespace MovieDiscussionService.Controllers
                 // Već postoji — ignoriši
             }
 
-            return RedirectToAction("Index");
+            // Sačuvaj parametre stranice u URL-u
+            return RedirectToAction("Index", new { Page = Page ?? 1, PageSize = PageSize ?? 4, TitleContains, GenreEquals, SortBy });
         }
 
         [HttpPost]
-        public ActionResult Unfollow(string id)
+        public ActionResult Unfollow(string id, int? Page, int? PageSize, string TitleContains, string GenreEquals, string SortBy)
         {
             if (string.IsNullOrEmpty(CurrentUserEmail))
                 return RedirectToAction("Login", "Account");
@@ -419,8 +474,11 @@ namespace MovieDiscussionService.Controllers
                 Follows.Execute(delete);
             }
 
-            return RedirectToAction("Index");
+            // Sačuvaj parametre stranice u URL-u
+            return RedirectToAction("Index", new { Page = Page ?? 1, PageSize = PageSize ?? 4, TitleContains, GenreEquals, SortBy });
         }
+
+
 
         private int GetFollowerCount(string discussionId)
         {
@@ -452,7 +510,7 @@ namespace MovieDiscussionService.Controllers
         }
 
         [HttpPost]
-        public ActionResult RateFilm(string id, bool isLike)
+        public ActionResult RateFilm(string id, bool isLike, int? Page, int? PageSize, string TitleContains, string GenreEquals, string SortBy)
         {
             var currentUserEmail = Session["email"]?.ToString()?.ToLowerInvariant();
             if (string.IsNullOrEmpty(currentUserEmail))
@@ -460,7 +518,6 @@ namespace MovieDiscussionService.Controllers
                 return RedirectToAction("Login", "Account");
             }
 
-            // Dohvatanje diskusije na koju korisnik reaguje
             var discussion = Discussions.CreateQuery<DiscussionEntity>()
                                         .Where(d => d.PartitionKey == "Disc" && d.RowKey == id)
                                         .FirstOrDefault();
@@ -468,21 +525,16 @@ namespace MovieDiscussionService.Controllers
             if (discussion == null)
                 return RedirectToAction("Index");
 
-            // Proveravamo da li je korisnik već glasao za ovu diskusiju
             var existingVote = CheckIfUserVoted(currentUserEmail, id);
 
             if (existingVote == null)
             {
-                // Prvi glas
                 var newVote = new VoteEntity(id, currentUserEmail)
                 {
                     IsLike = isLike
                 };
-
-                // Spremamo glas u tabelu Votes
                 Votes.Execute(TableOperation.Insert(newVote));
 
-                // Ažuriramo brojače lajkova/dislajkova u diskusiji
                 if (isLike)
                     discussion.Positive++;
                 else
@@ -490,20 +542,16 @@ namespace MovieDiscussionService.Controllers
             }
             else
             {
-                // Ako je korisnik već glasao, promeniti glas ako je suprotan
                 if (existingVote.IsLike != isLike)
                 {
-                    // Brisanje prethodnog glasa
                     Votes.Execute(TableOperation.Delete(existingVote));
 
-                    // Dodavanje novog glasa
                     var newVote = new VoteEntity(id, currentUserEmail)
                     {
                         IsLike = isLike
                     };
                     Votes.Execute(TableOperation.Insert(newVote));
 
-                    // Ažuriramo brojače u diskusiji
                     if (isLike)
                     {
                         discussion.Positive++;
@@ -517,10 +565,8 @@ namespace MovieDiscussionService.Controllers
                 }
                 else
                 {
-                    // Ako je korisnik kliknuo isti glas ponovo, poništavamo glas
                     Votes.Execute(TableOperation.Delete(existingVote));
 
-                    // Ažuriramo brojače
                     if (isLike)
                         discussion.Positive--;
                     else
@@ -528,12 +574,11 @@ namespace MovieDiscussionService.Controllers
                 }
             }
 
-            // Ažuriraj diskusiju u bazi
             Discussions.Execute(TableOperation.Replace(discussion));
 
-            return RedirectToAction("Index");
+            // Sačuvaj parametre stranice u URL-u
+            return RedirectToAction("Index", new { Page = Page ?? 1, PageSize = PageSize ?? 4, TitleContains, GenreEquals, SortBy });
         }
-
 
 
 

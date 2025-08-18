@@ -11,12 +11,8 @@ namespace Common.DTOs
         public enum SortBy
         {
             None = 0,
-            ScoreDesc,   // (Positive - Negative) opadajuće
+            ScoreDesc,
             ScoreAsc,
-            ImdbDesc,
-            ImdbAsc,
-            Newest,
-            Oldest
         }
 
         public class SearchRequest
@@ -25,9 +21,10 @@ namespace Common.DTOs
             public string GenreEquals { get; set; }
             public SortBy SortBy { get; set; }
 
-            // Paginacija (dodaćemo kasnije continuation token ako želiš pravi Table paging)
-            public int Page { get; set; } = 1;
-            public int PageSize { get; set; } = 10;
+            // Paginacija
+            public int Page { get; set; } = 1;          // Trenutna stranica
+            public int PageSize { get; set; } = 4;     // Broj diskusija po stranici
         }
     }
+
 }
