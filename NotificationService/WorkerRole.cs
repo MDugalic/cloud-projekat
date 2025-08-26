@@ -1,6 +1,11 @@
+using Common;
 using Microsoft.WindowsAzure;
 using Microsoft.WindowsAzure.Diagnostics;
 using Microsoft.WindowsAzure.ServiceRuntime;
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Queue;
+using Microsoft.WindowsAzure.Storage.Table;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -16,6 +21,10 @@ namespace NotificationService
         private readonly CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
         private readonly ManualResetEvent runCompleteEvent = new ManualResetEvent(false);
 
+        private CloudQueue _queue;
+        private CloudTable _subsTable;
+        private CloudTable _logTable;
+        private IEmailSender _email;
         public override void Run()
         {
             Trace.TraceInformation("NotificationService is running");
@@ -41,6 +50,30 @@ namespace NotificationService
             // For information on handling configuration changes
             // see the MSDN topic at https://go.microsoft.com/fwlink/?LinkId=166357.
 
+            var storageAccount = CloudStorageAccount.Parse(
+                RoleEnvironment.GetConfigurationSettingValue("DataConnectionString"));
+
+            // Queue
+
+            var queueClient = storageAccount.CreateCloudQueueClient();
+            _queue = queueClient.GetQueueReference("notifications");
+            _queue.CreateIfNotExists();
+
+            // Tables
+            var tableClient = storageAccount.CreateCloudTableClient();
+            _subsTable = tableClient.GetTableReference("FollowTable");
+            _subsTable.CreateIfNotExists();
+            _logTable = tableClient.GetTableReference("NotificationLog");
+            _logTable.CreateIfNotExists();
+
+            // Email sender (SMTP verzija)
+            _email = new SMTPEmailSender(
+                RoleEnvironment.GetConfigurationSettingValue("SmtpHost"),
+                int.Parse(RoleEnvironment.GetConfigurationSettingValue("SmtpPort")),
+                RoleEnvironment.GetConfigurationSettingValue("SmtpUser"),
+                RoleEnvironment.GetConfigurationSettingValue("SmtpPass"),
+                RoleEnvironment.GetConfigurationSettingValue("FromEmail"));
+
             bool result = base.OnStart();
 
             Trace.TraceInformation("NotificationService has been started");
@@ -65,9 +98,66 @@ namespace NotificationService
             // TODO: Replace the following with your own logic.
             while (!cancellationToken.IsCancellationRequested)
             {
-                Trace.TraceInformation("Working");
-                await Task.Delay(1000);
+                var msg = await _queue.GetMessageAsync();
+                if(msg != null)
+                {
+                    try
+                    {
+                        // 1. Deserialize message
+
+                        var payload = JsonConvert.DeserializeObject<NotifyMessage>(msg.AsString);
+
+                        // 2. Fetch all subscribers
+
+                        var query = new TableQuery<FollowEntity>().Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, payload.DiscussionId));
+
+                        var followers = await _subsTable.ExecuteQuerySegmentedAsync(query, null);
+
+                        var commentsTable = _subsTable.ServiceClient.GetTableReference("Comments"); // koristi isti tableClient
+                        var retrieve = TableOperation.Retrieve<CommentEntity>(payload.DiscussionId, payload.CommentId);
+                        var resultComment = await commentsTable.ExecuteAsync(retrieve);
+                        var commentEntity = resultComment.Result as CommentEntity;
+
+                        string body = commentEntity?.Text ?? $"Novi komentar (ID: {payload.CommentId})";
+
+                        int sentCount = 0;
+
+                        // 3. Send emails
+
+                        foreach (var f in followers.Results)
+                        {
+                            await _email.SendAsync(f.UserEmail,
+                                "Novi komentar na diskusiji", body);
+                            sentCount++;
+                        }
+
+                        // 4. Log notification
+                        var log = new NotificationLogEntity(payload.CommentId, DateTime.UtcNow, sentCount);
+                        var insert = TableOperation.InsertOrReplace(log);
+                        await _logTable.ExecuteAsync(insert);
+
+                        // 5. Remove message from queue
+                        await _queue.DeleteMessageAsync(msg);
+
+                        Trace.TraceInformation($"Processed comment {payload.CommentId}, sent {sentCount} emails");
+                    }
+                    catch (Exception ex)
+                    {
+                        Trace.TraceError("Greška prilikom obrade: " + ex.Message);
+                    }
+                }
+                else
+                {
+                    await Task.Delay(1000);
+                }
             }
+        }
+
+        // DTO za poruku u redu
+        public class NotifyMessage
+        {
+            public string CommentId { get; set; }
+            public string DiscussionId { get; set; }
         }
     }
 }

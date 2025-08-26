@@ -66,10 +66,12 @@
     <Compile Include="DTOs\SearchRequestDTO.cs" />
     <Compile Include="DTOs\UpdateProfileDTO.cs" />
     <Compile Include="FollowEntity.cs" />
+    <Compile Include="IEmailSender.cs" />
     <Compile Include="NotificationLogEntity.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="QueueMessagePayload.cs" />
     <Compile Include="Storage.cs" />
+    <Compile Include="SubscriptionEntity.cs" />
     <Compile Include="UserEntity.cs" />
     <Compile Include="VoteEntity.cs" />
   </ItemGroup>

@@ -1,9 +1,12 @@
 ﻿using Azure.Storage.Blobs;
 using Common;
 using Common.DTOs;
+using Microsoft.WindowsAzure.ServiceRuntime;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
+using Microsoft.WindowsAzure.Storage.Queue;
 using Microsoft.WindowsAzure.Storage.Table;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
@@ -432,6 +435,24 @@ namespace MovieDiscussionService.Controllers
             };
 
             Comments.Execute(TableOperation.Insert(comment));
+
+            var notify = new QueueMessagePayload
+            {
+                CommentId = comment.RowKey, // ID komentara
+                DiscussionId = comment.PartitionKey // ID diskusije
+            };
+
+            var storageAccount = CloudStorageAccount.Parse(RoleEnvironment.GetConfigurationSettingValue("DataConnectionString"));
+
+            var queueClient = storageAccount.CreateCloudQueueClient();
+            var queue = queueClient.GetQueueReference("notifications");
+            queue.CreateIfNotExists();
+
+            // Serialization and sending message
+
+            var json = JsonConvert.SerializeObject(notify);
+            var msg = new CloudQueueMessage(json);
+            queue.AddMessage(msg);
 
             // Vraćanje na istu stranicu nakon postavljanja komentara
             return RedirectToAction("Details", new { id = dto.DiscussionId });

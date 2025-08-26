@@ -12,7 +12,7 @@
       <Setting name="DataConnectionString" />
     </ConfigurationSettings>
     <Endpoints>
-      <InputEndpoint name="Endpoint1" protocol="http" port="80" />
+      <InputEndpoint name="Endpoint1" protocol="http" port="8081" />
     </Endpoints>
   </WebRole>
   <WebRole name="HealthStatusService" vmsize="Standard_D1_v2">
@@ -33,6 +33,11 @@
   <WorkerRole name="NotificationService" vmsize="Standard_D1_v2">
     <ConfigurationSettings>
       <Setting name="DataConnectionString" />
+		<Setting name="SmtpHost" />
+		<Setting name="SmtpPort" />
+		<Setting name="SmtpUser" />
+		<Setting name="SmtpPass" />
+		<Setting name="FromEmail" />
     </ConfigurationSettings>
   </WorkerRole>
   <WorkerRole name="HealthMonitoringService" vmsize="Standard_D1_v2">
