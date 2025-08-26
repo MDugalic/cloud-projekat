@@ -9,5 +9,6 @@ namespace Common
     public interface IEmailSender
     {
         Task SendAsync(string to, string subject, string body);
+        Task SendAsync(IEnumerable<string> recipients, string subject, string body);
     }
 }

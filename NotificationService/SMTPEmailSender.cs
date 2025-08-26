@@ -26,16 +26,35 @@ namespace NotificationService
             _from = from;
         }
 
-        public async Task SendAsync(string to, string subject, string body)
+        public async Task SendAsync(IEnumerable<string> recipients, string subject, string body)
         {
-            var message = new MailMessage(_from, to, subject, body);
+            if (recipients == null || !recipients.Any())
+                return;
 
-            using(var client = new SmtpClient(_host, _port))
+            using (var message = new MailMessage())
             {
-                client.Credentials = new NetworkCredential(_user, _pass);
-                client.EnableSsl = false;
-                await client.SendMailAsync(message);
+                message.From = new MailAddress(_from);
+                foreach (var to in recipients.Distinct())
+                {
+                    message.To.Add(to);
+                }
+
+                message.Subject = subject;
+                message.Body = body;
+                message.IsBodyHtml = false;
+
+                using (var client = new SmtpClient(_host, _port))
+                {
+                    client.Credentials = new NetworkCredential(_user, _pass);
+                    client.EnableSsl = false; // Papercut test server ne podržava SSL
+                    await client.SendMailAsync(message);
+                }
             }
+        }
+
+        public Task SendAsync(string to, string subject, string body)
+        {
+            return SendAsync(new[] { to }, subject, body);
         }
     }
 }

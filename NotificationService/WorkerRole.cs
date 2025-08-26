@@ -113,6 +113,14 @@ namespace NotificationService
 
                         var followers = await _subsTable.ExecuteQuerySegmentedAsync(query, null);
 
+                        // 2b. Izvuci sve email adrese
+                        var recipientList = followers.Results
+                            .Select(f => f.UserEmail)
+                            .Where(e => !string.IsNullOrWhiteSpace(e))
+                            .Distinct()
+                            .ToList();
+
+
                         var commentsTable = _subsTable.ServiceClient.GetTableReference("Comments"); // koristi isti tableClient
                         var retrieve = TableOperation.Retrieve<CommentEntity>(payload.DiscussionId, payload.CommentId);
                         var resultComment = await commentsTable.ExecuteAsync(retrieve);
@@ -120,18 +128,14 @@ namespace NotificationService
 
                         string body = commentEntity?.Text ?? $"Novi komentar (ID: {payload.CommentId})";
 
-                        int sentCount = 0;
+                        // int sentCount = 0;
 
                         // 3. Send emails
 
-                        foreach (var f in followers.Results)
-                        {
-                            await _email.SendAsync(f.UserEmail,
-                                "Novi komentar na diskusiji", body);
-                            sentCount++;
-                        }
+                        await _email.SendAsync(recipientList, "Novi komentar na diskusiji", body);
 
                         // 4. Log notification
+                        var sentCount = recipientList.Count;
                         var log = new NotificationLogEntity(payload.CommentId, DateTime.UtcNow, sentCount);
                         var insert = TableOperation.InsertOrReplace(log);
                         await _logTable.ExecuteAsync(insert);
