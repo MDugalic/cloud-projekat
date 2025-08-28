@@ -1,33 +1,58 @@
-﻿@{
-    ViewBag.Title = "Home Page";
+﻿@model List<HealthStatusService.Models.HealthStatusViewModel>
+
+@{
+    ViewBag.Title = "Health Status";
 }
 
-<main>
-    <section class="row" aria-labelledby="aspnetTitle">
-        <h1 id="title">ASP.NET</h1>
-        <p class="lead">ASP.NET is a free web framework for building great Web sites and Web applications using HTML, CSS and JavaScript.</p>
-        <p><a href="https://asp.net" class="btn btn-primary btn-md">Learn more &raquo;</a></p>
-    </section>
+<h2>Health Status za poslednja 2 sata</h2>
 
-    <div class="row">
-        <section class="col-md-4" aria-labelledby="gettingStartedTitle">
-            <h2 id="gettingStartedTitle">Getting started</h2>
-            <p>
-                ASP.NET MVC gives you a powerful, patterns-based way to build dynamic websites that
-                enables a clean separation of concerns and gives you full control over markup
-                for enjoyable, agile development.
-            </p>
-            <p><a class="btn btn-outline-dark" href="https://go.microsoft.com/fwlink/?LinkId=301865">Learn more &raquo;</a></p>
-        </section>
-        <section class="col-md-4" aria-labelledby="librariesTitle">
-            <h2 id="librariesTitle">Get more libraries</h2>
-            <p>NuGet is a free Visual Studio extension that makes it easy to add, remove, and update libraries and tools in Visual Studio projects.</p>
-            <p><a class="btn btn-outline-dark" href="https://go.microsoft.com/fwlink/?LinkId=301866">Learn more &raquo;</a></p>
-        </section>
-        <section class="col-md-4" aria-labelledby="hostingTitle">
-            <h2 id="hostingTitle">Web Hosting</h2>
-            <p>You can easily find a web hosting company that offers the right mix of features and price for your applications.</p>
-            <p><a class="btn btn-outline-dark" href="https://go.microsoft.com/fwlink/?LinkId=301867">Learn more &raquo;</a></p>
-        </section>
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+}
+
+@foreach (var service in Model)
+{
+    <div class="card mb-4">
+        <div class="card-header">
+            <strong>@service.ServiceName</strong> - Uptime: @service.UptimePercentage.ToString("F2")%
+        </div>
+        <div class="card-body">
+            <canvas id="chart_@service.ServiceName.Replace(" ", "_")" height="150"></canvas>
+
+            <script>
+                var ctx = document.getElementById('chart_@service.ServiceName.Replace(" ", "_")').getContext('2d');
+                var labels = [@string.Join(",", service.Records.Select(r => "'" + r.TimestampUtc.ToLocalTime().ToString("HH:mm:ss") + "'"))];
+                var data = [@string.Join(",", service.Records.Select(r => r.Status == "OK" ? 1 : 0))];
+
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Status (1=OK, 0=NOT_OK)',
+                            data: data,
+                            fill: false,
+                            borderColor: 'rgb(75, 192, 192)',
+                            tension: 0.1,
+                            pointRadius: 5
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                suggestedMax: 1,
+                                ticks: {
+                                    stepSize: 1,
+                                    callback: function(value) {
+                                        return value === 1 ? 'OK' : 'NOT_OK';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            </script>
+        </div>
     </div>
-</main>
+}

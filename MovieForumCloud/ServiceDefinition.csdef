@@ -33,11 +33,11 @@
   <WorkerRole name="NotificationService" vmsize="Standard_D1_v2">
     <ConfigurationSettings>
       <Setting name="DataConnectionString" />
-		<Setting name="SmtpHost" />
-		<Setting name="SmtpPort" />
-		<Setting name="SmtpUser" />
-		<Setting name="SmtpPass" />
-		<Setting name="FromEmail" />
+      <Setting name="SmtpHost" />
+      <Setting name="SmtpPort" />
+      <Setting name="SmtpUser" />
+      <Setting name="SmtpPass" />
+      <Setting name="FromEmail" />
     </ConfigurationSettings>
   </WorkerRole>
   <WorkerRole name="HealthMonitoringService" vmsize="Standard_D1_v2">
