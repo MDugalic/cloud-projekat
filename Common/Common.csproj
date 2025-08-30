@@ -66,6 +66,7 @@
     <Compile Include="DTOs\SearchRequestDTO.cs" />
     <Compile Include="DTOs\UpdateProfileDTO.cs" />
     <Compile Include="FollowEntity.cs" />
+    <Compile Include="HealthCheckEntity.cs" />
     <Compile Include="IEmailSender.cs" />
     <Compile Include="NotificationLogEntity.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
