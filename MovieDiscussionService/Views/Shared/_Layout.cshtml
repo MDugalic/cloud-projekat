@@ -3,12 +3,53 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>@ViewBag.Title - My ASP.NET Application</title>
+    <title>@ViewBag.Title - MovieForum</title>
     @Styles.Render("~/Content/css")
     @Scripts.Render("~/bundles/modernizr")
 </head>
 <body>
-    <div class="container body-content">
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <!-- Logo / Naslov -->
+            <a class="navbar-brand" href="@Url.Action("Index", "Discussion")">MovieForum</a>
+
+            <!-- Desna strana (korisnik) -->
+            <div class="d-flex align-items-center ms-auto">
+                @if (Session["email"] != null)
+                {
+                    var email = Session["email"].ToString().ToLower();
+                    var usersTable = Common.Storage.GetTable("Users");
+                    var entity = usersTable.Execute(
+                        Microsoft.WindowsAzure.Storage.Table.TableOperation.Retrieve<Common.UserEntity>("User", email)
+                    ).Result as Common.UserEntity;
+
+                    if (entity != null)
+                    {
+                        <!-- Link ka EditProfile -->
+                        <a href="@Url.Action("EditProfile", "Account")" class="d-flex align-items-center text-decoration-none me-3">
+                            <img src="@entity.PhotoUrl"
+                                 onerror="this.src='/Content/no-avatar.png';"
+                                 class="rounded-circle"
+                                 style="width:35px;height:35px;object-fit:cover;margin-right:8px;" />
+                            <span>@entity.FullName</span>
+                        </a>
+
+                        <!-- Logout -->
+                        <a href="@Url.Action("Logout", "Account")" class="btn btn-outline-danger btn-sm">Logout</a>
+                    }
+                }
+                else
+                {
+                    <!-- Ako nije ulogovan -->
+                    <a href="@Url.Action("Login", "Account")" class="btn btn-outline-primary btn-sm">Login</a>
+                }
+            </div>
+        </div>
+    </nav>
+
+    <!-- Glavni sadržaj -->
+    <div class="container body-content mt-3">
         @RenderBody()
         <hr />
     </div>

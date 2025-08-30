@@ -3,6 +3,8 @@ using Common.DTOs;
 using Microsoft.WindowsAzure.Storage.Table;
 using System;
 using System.Collections.Generic;
+using System.Configuration;
+using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -23,19 +25,57 @@ namespace MovieDiscussionService.Controllers
         }
 
         [HttpPost]
-        public ActionResult Register(RegisterDTO dto)
+        
+        public ActionResult Register(RegisterDTO dto, HttpPostedFileBase PhotoFile)
         {
             if (!ModelState.IsValid)
                 return View(dto);
 
-            var existing = Users.Execute(TableOperation.Retrieve<UserEntity>("User", dto.Email.ToLower())).Result as UserEntity;
+            var emailLower = dto.Email?.ToLowerInvariant();
+
+            var existing = Users.Execute(
+                TableOperation.Retrieve<UserEntity>("User", emailLower)
+            ).Result as UserEntity;
+
             if (existing != null)
             {
                 ModelState.AddModelError("", "Email already registered.");
                 return View(dto);
             }
 
-            var user = new UserEntity(dto.Email)
+            string photoUrl = dto.PhotoUrl; // fallback ako neko nalepi direktno URL
+
+            // Ako korisnik uploaduje fajl
+            if (PhotoFile != null && PhotoFile.ContentLength > 0)
+            {
+                if (PhotoFile.ContentLength > 5 * 1024 * 1024)
+                {
+                    ModelState.AddModelError("", "The file size exceeds the allowed limit (5MB).");
+                    return View(dto);
+                }
+
+                try
+                {
+                    var fileName = Guid.NewGuid().ToString() + Path.GetExtension(PhotoFile.FileName);
+
+                    // Uzmi kontejner (koristimo tvoj Storage.cs)
+                    var containerName = ConfigurationManager.AppSettings["UserPhotosContainer"] ?? "user-photos";
+                    var container = Storage.GetContainer(containerName);
+
+                    var blob = container.GetBlockBlobReference(fileName);
+                    blob.Properties.ContentType = PhotoFile.ContentType;
+                    blob.UploadFromStream(PhotoFile.InputStream);
+
+                    photoUrl = blob.Uri.AbsoluteUri;
+                }
+                catch (Exception ex)
+                {
+                    ModelState.AddModelError("", "Error uploading photo: " + ex.Message);
+                    return View(dto);
+                }
+            }
+
+            var user = new UserEntity(emailLower)
             {
                 FullName = dto.FullName,
                 Gender = dto.Gender,
@@ -43,13 +83,13 @@ namespace MovieDiscussionService.Controllers
                 City = dto.City,
                 Address = dto.Address,
                 PasswordHash = HashPassword(dto.Password),
-                PhotoUrl = dto.PhotoUrl,
+                PhotoUrl = photoUrl,
                 IsAuthorVerified = false
             };
 
             Users.Execute(TableOperation.Insert(user));
 
-            Session["email"] = dto.Email.ToLower();
+            Session["email"] = emailLower;
             return RedirectToAction("Index", "Discussion");
         }
 
@@ -92,12 +132,10 @@ namespace MovieDiscussionService.Controllers
         public ActionResult EditProfile()
         {
             var email = Session["email"]?.ToString();
-            if (email == null)
-                return RedirectToAction("Login");
+            if (email == null) return RedirectToAction("Login");
 
             var user = Users.Execute(TableOperation.Retrieve<UserEntity>("User", email)).Result as UserEntity;
-            if (user == null)
-                return RedirectToAction("Login");
+            if (user == null) return RedirectToAction("Login");
 
             var dto = new RegisterDTO
             {
@@ -107,34 +145,66 @@ namespace MovieDiscussionService.Controllers
                 City = user.City,
                 Address = user.Address,
                 Email = user.RowKey,
-                PhotoUrl = user.PhotoUrl
+                PhotoUrl = user.PhotoUrl   // ⬅ OVO je ključno
             };
 
             return View(dto);
         }
 
         [HttpPost]
-        public ActionResult EditProfile(RegisterDTO dto)
+        public ActionResult EditProfile(RegisterDTO dto, HttpPostedFileBase PhotoFile)
         {
-            if (!ModelState.IsValid)
-                return View(dto);
-
             var email = Session["email"]?.ToString();
-            if (email == null)
-                return RedirectToAction("Login");
+            if (email == null) return RedirectToAction("Login");
 
             var user = Users.Execute(TableOperation.Retrieve<UserEntity>("User", email)).Result as UserEntity;
-            if (user == null)
-                return RedirectToAction("Login");
+            if (user == null) return RedirectToAction("Login");
 
+            string photoUrl = user.PhotoUrl;
+
+            if (PhotoFile != null && PhotoFile.ContentLength > 0)
+            {
+                if (PhotoFile.ContentLength > 5 * 1024 * 1024)
+                {
+                    ModelState.AddModelError("", "The file size exceeds the allowed limit (5MB).");
+                    return View(dto);
+                }
+
+                try
+                {
+                    // obriši staru sliku
+                    if (!string.IsNullOrEmpty(user.PhotoUrl))
+                    {
+                        var oldUri = new Uri(user.PhotoUrl);
+                        var oldBlobName = Path.GetFileName(oldUri.LocalPath);
+                        var container = Storage.GetContainer(ConfigurationManager.AppSettings["UserPhotosContainer"] ?? "user-photos");
+                        var oldBlob = container.GetBlockBlobReference(oldBlobName);
+                        oldBlob.DeleteIfExists();
+                    }
+
+                    // upload nove
+                    var fileName = Guid.NewGuid().ToString() + Path.GetExtension(PhotoFile.FileName);
+                    var newContainer = Storage.GetContainer(ConfigurationManager.AppSettings["UserPhotosContainer"] ?? "user-photos");
+                    var newBlob = newContainer.GetBlockBlobReference(fileName);
+                    newBlob.UploadFromStream(PhotoFile.InputStream);
+
+                    photoUrl = newBlob.Uri.AbsoluteUri;
+                }
+                catch (Exception ex)
+                {
+                    ModelState.AddModelError("", "Error uploading photo: " + ex.Message);
+                    return View(dto);
+                }
+            }
+
+            // ažuriraj user-a
             user.FullName = dto.FullName;
             user.Gender = dto.Gender;
             user.Country = dto.Country;
             user.City = dto.City;
             user.Address = dto.Address;
-            user.PhotoUrl = dto.PhotoUrl;
+            user.PhotoUrl = photoUrl;
 
-            // Lozinku menjaj samo ako je uneta nova
             if (!string.IsNullOrEmpty(dto.Password))
                 user.PasswordHash = HashPassword(dto.Password);
 
@@ -142,6 +212,5 @@ namespace MovieDiscussionService.Controllers
 
             return RedirectToAction("Index", "Discussion");
         }
-
     }
 }
