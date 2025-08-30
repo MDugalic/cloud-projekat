@@ -102,7 +102,17 @@ namespace MovieDiscussionService.Controllers
         [HttpPost]
         public ActionResult Login(LoginDTO dto)
         {
-            var user = Users.Execute(TableOperation.Retrieve<UserEntity>("User", dto.Email.ToLower())).Result as UserEntity;
+            // Ako polja nisu validna (prazna ili pogrešan format emaila)
+            if (!ModelState.IsValid)
+            {
+                return View(dto);
+            }
+
+            // Sigurnosna provera - email uvek u lowercase
+            var user = Users.Execute(
+                TableOperation.Retrieve<UserEntity>("User", dto.Email.ToLower())
+            ).Result as UserEntity;
+
             if (user == null || user.PasswordHash != HashPassword(dto.Password))
             {
                 ModelState.AddModelError("", "Invalid credentials.");
