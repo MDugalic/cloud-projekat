@@ -12,5 +12,10 @@ namespace MovieDiscussionService.Controllers
             [HttpGet]
             [Route("health-monitoring")]
             public ActionResult Ping() => Content("OK");
+
+        //public ActionResult Ping()
+        //{
+        //    return new HttpStatusCodeResult(500, "Simulated failure");
+        //}
     }
 }

@@ -1,6 +1,8 @@
-﻿using Microsoft.WindowsAzure.ServiceRuntime;
+﻿using Common;
+using Microsoft.WindowsAzure.ServiceRuntime;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
+using NotificationService;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -9,7 +11,7 @@ using System.Net;
 using System.Net.Mail;
 using System.Threading;
 using System.Threading.Tasks;
-using Common;
+using static Common.AlterEmailEntity;
 
 namespace HealthMonitoringService
 {
@@ -19,16 +21,25 @@ namespace HealthMonitoringService
         private readonly ManualResetEvent runCompleteEvent = new ManualResetEvent(false);
         private CloudTable healthCheckTable;
         private CloudTable alertEmailsTable;
- // Update URLs to actual deployed endpoints or local if testing
-        private readonly string movieDiscussionUrl = "http://localhost:5000/health-monitoring";
-        private readonly string notificationUrl = "http://localhost:5001/health-monitoring";
-       
+        private IEmailSender _email;
+        // Update URLs to actual deployed endpoints or local if testing
+        private readonly string movieDiscussionUrl = "http://localhost:8081/health-monitoring";
+        private readonly string notificationUrl = "http://localhost:8082/health-monitoring";
+
 
         public override bool OnStart()
         {
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             ServicePointManager.DefaultConnectionLimit = 12;
             InitializeAzureTables();
+
+            _email = new SMTPEmailSender(
+                RoleEnvironment.GetConfigurationSettingValue("SmtpHost"),
+                int.Parse(RoleEnvironment.GetConfigurationSettingValue("SmtpPort")),
+                RoleEnvironment.GetConfigurationSettingValue("SmtpUser"),
+                RoleEnvironment.GetConfigurationSettingValue("SmtpPass"),
+                RoleEnvironment.GetConfigurationSettingValue("FromEmail"));
+
             bool result = base.OnStart();
             Trace.TraceInformation("HealthMonitoringService has been started");
             return result;
@@ -36,13 +47,14 @@ namespace HealthMonitoringService
 
         private void InitializeAzureTables()
         {
-            string connectionString = "UseDevelopmentStorage=true"; // Adjust for real storage
+            string connectionString = RoleEnvironment.GetConfigurationSettingValue("DataConnectionString");
+            //string connectionString = "DataConnectionString"; // Adjust for real storage
             var storageAccount = CloudStorageAccount.Parse(connectionString);
             var tableClient = storageAccount.CreateCloudTableClient();
             healthCheckTable = tableClient.GetTableReference("HealthCheck");
             alertEmailsTable = tableClient.GetTableReference("AlertEmails");
-            healthCheckTable.CreateIfNotExistsAsync().Wait();
-            alertEmailsTable.CreateIfNotExistsAsync().Wait();
+            // healthCheckTable.CreateIfNotExistsAsync().Wait();
+            // alertEmailsTable.CreateIfNotExistsAsync().Wait();
         }
 
         public override void Run()
@@ -123,32 +135,33 @@ namespace HealthMonitoringService
 
         private async Task SendAlertEmails(string serviceName)
         {
-            var query = new TableQuery<DynamicTableEntity>();
-            var results = await alertEmailsTable.ExecuteQuerySegmentedAsync(query, null);
-            var emails = results.Results.Select(e => e.Properties["Email"].StringValue).ToList();
+            var query = new TableQuery<AlertEmailEntity>()
+       .Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, "Alert"));
 
-            foreach (var email in emails)
+            var results = await alertEmailsTable.ExecuteQuerySegmentedAsync(query, null);
+
+            // Može više emailova – recimo da je RowKey = email adresa
+            var recipients = results.Results
+                .Select(e => e.RowKey)
+                .Where(email => !string.IsNullOrWhiteSpace(email))
+                .Distinct()
+                .ToList();
+
+            if (recipients.Any())
             {
                 try
                 {
-                    using (var smtp = new SmtpClient("smtp.gmail.com", 587))
-                    {
-                        smtp.Credentials = new NetworkCredential("your_email@gmail.com", "your_password");
-                        smtp.EnableSsl = true;
+                    await _email.SendAsync(
+                        recipients, // lista primaoca
+                        $"[ALERT] Service {serviceName} is down",
+                        $"Service {serviceName} failed health-check at {DateTime.UtcNow}."
+                    );
 
-                        var mail = new MailMessage("your_email@gmail.com", email)
-                        {
-                            Subject = $"[ALERT] Service {serviceName} is down",
-                            Body = $"Service {serviceName} failed health-check."
-                        };
-
-                        await smtp.SendMailAsync(mail);
-                        Trace.TraceInformation($"Alert sent to: {email}");
-                    }
+                    Trace.TraceInformation($"Alert sent to {recipients.Count} recipients");
                 }
                 catch (Exception ex)
                 {
-                    Trace.TraceError($"Error sending alert: {ex.Message}");
+                    Trace.TraceError("Greška prilikom slanja alert email-a: " + ex.Message);
                 }
             }
         }
