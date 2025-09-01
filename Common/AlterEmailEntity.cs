@@ -19,10 +19,12 @@ namespace Common
             {
                 PartitionKey = "Alert";
                 RowKey = emailLower;
+                // Email = emailLower; // čuvamo i originalnu vrednost
             }
 
             public AlertEmailEntity() { }
 
+            // public string Email { get; set; }
         }
     }
 }

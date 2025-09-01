@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -25,6 +26,7 @@ namespace NotificationService
         private CloudTable _subsTable;
         private CloudTable _logTable;
         private IEmailSender _email;
+        private HttpListener _listener;
         public override void Run()
         {
             Trace.TraceInformation("NotificationService is running");
@@ -74,6 +76,16 @@ namespace NotificationService
                 RoleEnvironment.GetConfigurationSettingValue("SmtpPass"),
                 RoleEnvironment.GetConfigurationSettingValue("FromEmail"));
 
+            var endpoint = RoleEnvironment.CurrentRoleInstance.InstanceEndpoints["HealthEndpoint"].IPEndpoint;
+            string url = $"http://{endpoint}/health-monitoring/";
+
+            _listener = new HttpListener();
+            _listener.Prefixes.Add(url); // endpoint mora da se poklapa sa csdef
+            _listener.Start();
+
+            Task.Run(() => ListenForHealthCheck());
+
+
             bool result = base.OnStart();
 
             Trace.TraceInformation("NotificationService has been started");
@@ -81,9 +93,37 @@ namespace NotificationService
             return result;
         }
 
+        private void ListenForHealthCheck()
+        {
+            while (_listener.IsListening)
+            {
+                try
+                {
+                    var ctx = _listener.GetContext(); // blokira dok ne dodje zahtev
+                    var responseMessage = "OK";
+
+                    var buffer = Encoding.UTF8.GetBytes(responseMessage);
+                    ctx.Response.ContentLength64 = buffer.Length;
+                    ctx.Response.OutputStream.Write(buffer, 0, buffer.Length);
+                    ctx.Response.OutputStream.Close();
+                }
+                catch (HttpListenerException) // thrown kad se listener zaustavi
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    Trace.TraceError("Health endpoint error: " + ex.Message);
+                }
+            }
+        }
+
         public override void OnStop()
         {
             Trace.TraceInformation("NotificationService is stopping");
+
+            _listener?.Stop();
+            _listener?.Close();
 
             this.cancellationTokenSource.Cancel();
             this.runCompleteEvent.WaitOne();
@@ -126,7 +166,9 @@ namespace NotificationService
                         var resultComment = await commentsTable.ExecuteAsync(retrieve);
                         var commentEntity = resultComment.Result as CommentEntity;
 
-                        string body = commentEntity?.Text ?? $"Novi komentar (ID: {payload.CommentId})";
+                        string userNameOrEmail = commentEntity?.CreatorEmail ?? commentEntity?.AuthorEmail ?? "Nepoznat";
+                        string commentText = commentEntity?.Text ?? $"Novi komentar (ID: {payload.CommentId})";
+                        string body = $"{userNameOrEmail}: {commentText}";
 
                         // int sentCount = 0;
 

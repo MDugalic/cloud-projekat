@@ -25,7 +25,7 @@ namespace MovieDiscussionService.Controllers
         }
 
         [HttpPost]
-        
+
         public ActionResult Register(RegisterDTO dto, HttpPostedFileBase PhotoFile)
         {
             if (!ModelState.IsValid)

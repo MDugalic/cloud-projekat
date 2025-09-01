@@ -39,10 +39,18 @@
       <Setting name="SmtpPass" />
       <Setting name="FromEmail" />
     </ConfigurationSettings>
+	  <Endpoints>
+		  <InputEndpoint name="HealthEndpoint" protocol="http" port="8082" />
+	  </Endpoints>
   </WorkerRole>
   <WorkerRole name="HealthMonitoringService" vmsize="Standard_D1_v2">
     <ConfigurationSettings>
       <Setting name="DataConnectionString" />
+		<Setting name="SmtpHost" />
+		<Setting name="SmtpPort" />
+		<Setting name="SmtpUser" />
+		<Setting name="SmtpPass" />
+		<Setting name="FromEmail" />
     </ConfigurationSettings>
   </WorkerRole>
 </ServiceDefinition>
