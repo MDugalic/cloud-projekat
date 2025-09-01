@@ -19,7 +19,7 @@ namespace HealthMonitoringService
         private readonly ManualResetEvent runCompleteEvent = new ManualResetEvent(false);
         private CloudTable healthCheckTable;
         private CloudTable alertEmailsTable;
- // Update URLs to actual deployed endpoints or local if testing
+        // Update URLs to actual deployed endpoints or local if testing
         private readonly string movieDiscussionUrl = "http://localhost:5000/health-monitoring";
         private readonly string notificationUrl = "http://localhost:5001/health-monitoring";
        
@@ -41,8 +41,8 @@ namespace HealthMonitoringService
             var tableClient = storageAccount.CreateCloudTableClient();
             healthCheckTable = tableClient.GetTableReference("HealthCheck");
             alertEmailsTable = tableClient.GetTableReference("AlertEmails");
-            healthCheckTable.CreateIfNotExistsAsync().Wait();
-            alertEmailsTable.CreateIfNotExistsAsync().Wait();
+            // healthCheckTable.CreateIfNotExistsAsync().Wait();
+            // alertEmailsTable.CreateIfNotExistsAsync().Wait();
         }
 
         public override void Run()
